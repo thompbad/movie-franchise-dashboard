@@ -383,7 +383,6 @@ roi_chart = (
             alt.Tooltip("Audience Rating:Q", title="Audience rating", format=".2f"),
         ],
     )
-    .transform_filter(click_franchise)
     .properties(
         title="Movie-Level Return on Budget",
         height=280
