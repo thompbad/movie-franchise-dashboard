@@ -440,12 +440,14 @@ with takeaway3:
 # --------------------------------------------------
 # Connected charts
 # --------------------------------------------------
+if "connected_chart_reset" not in st.session_state:
+    st.session_state.connected_chart_reset = 0
 click_franchise = alt.selection_point(
     fields=["Franchise"],
     empty=True,
     clear="dblclick",
     toggle=False,
-    name="ClickFranchise"
+    name=f"ClickFranchise_{st.session_state.connected_chart_reset}"
 )
 
 metric_title_map = {
@@ -806,6 +808,7 @@ with reset_col:
         use_container_width=True
     ):
         st.session_state.connected_chart_reset += 1
+        st.rerun()
 
 top_row = alt.hconcat(
     franchise_bar,
