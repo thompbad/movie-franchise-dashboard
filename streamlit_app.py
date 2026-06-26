@@ -19,7 +19,7 @@ st.markdown(
     <style>
         @media (min-width: 1100px) {
             .st-key-connected_chart_block {
-                transform: translateX(-155px);
+                transform: translateX(-135px);
                 width: calc(100% + 105px);
             }
 
