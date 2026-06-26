@@ -16,13 +16,10 @@ st.set_page_config(
 
 alt.data_transformers.disable_max_rows()
 
-theme_base = st.get_option("theme.base") or "light"
 
-CHART_TEXT_COLOR = (
-    "#E5E7EB"
-    if theme_base == "dark"
-    else "#31333F"
-)
+CHART_TEXT_COLOR = "#E5E7EB"
+
+
 
 
 # --------------------------------------------------
@@ -46,13 +43,7 @@ FRANCHISE_COLORS = {
     "Jurassic Park": "#D95F4B"
 }
 
-FRANCHISE_SHAPES = {
-    "MCU": "circle",
-    "Star Wars": "square",
-    "Wizarding World": "diamond",
-    "Middle Earth": "triangle-up",
-    "Jurassic Park": "cross"
-}
+
 
 GENRE_COLORS = {
     "Action": "#D9A400",
@@ -74,11 +65,7 @@ def franchise_color_scale():
     )
 
 
-def franchise_shape_scale():
-    return alt.Scale(
-        domain=list(FRANCHISE_SHAPES.keys()),
-        range=list(FRANCHISE_SHAPES.values())
-    )
+
 
 
 def safe_name(value, fallback="Not available"):
@@ -518,7 +505,8 @@ franchise_bar = (
     .add_params(click_franchise)
     .properties(
         title=f"{metric_title_map[metric_choice]} by Franchise",
-        height=320
+        width=530,
+        height=390
     )
 )
 
@@ -585,7 +573,8 @@ budget_scatter = (
     .transform_filter(click_franchise)
     .properties(
         title="Budget vs. Lifetime Gross",
-        height=320
+        width=530,
+        height=390
     )
 )
 
@@ -647,7 +636,8 @@ release_year_chart = (
     .transform_filter(click_franchise)
     .properties(
         title="Lifetime Gross by Release Year",
-        height=285
+        width=530,
+        height=350
     )
 )
 
@@ -709,7 +699,8 @@ rating_scatter = (
     .transform_filter(click_franchise)
     .properties(
         title="Audience Rating vs. Lifetime Gross",
-        height=285
+        width=530,
+        height=350
     )
 )
 
@@ -837,7 +828,8 @@ coordinated_dashboard = (
 
 st.altair_chart(
     coordinated_dashboard,
-    use_container_width=True
+    use_container_width=True,
+    theme=None
 )
 
 
