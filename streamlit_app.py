@@ -602,11 +602,7 @@ release_year_chart = (
             scale=franchise_color_scale(),
             legend=None
         ),
-        shape=alt.Shape(
-            "Franchise:N",
-            scale=franchise_shape_scale(),
-            legend=None
-        ),
+
         tooltip=[
             alt.Tooltip(
                 "Title:N",
@@ -665,11 +661,7 @@ rating_scatter = (
             scale=franchise_color_scale(),
             legend=None
         ),
-        shape=alt.Shape(
-            "Franchise:N",
-            scale=franchise_shape_scale(),
-            legend=None
-        ),
+
         tooltip=[
             alt.Tooltip(
                 "Title:N",
@@ -783,12 +775,12 @@ st.caption(
 top_row = alt.hconcat(
     franchise_bar,
     budget_scatter
-).resolve_scale(color="independent", shape="independent")
+).resolve_scale(color="independent")
 
 middle_row = alt.hconcat(
     release_year_chart,
     rating_scatter
-).resolve_scale(color="independent", shape="independent")
+).resolve_scale(color="independent")
 
 coordinated_dashboard = (
     alt.vconcat(
