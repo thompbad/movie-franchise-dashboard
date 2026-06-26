@@ -519,7 +519,7 @@ franchise_bar = (
     .add_params(click_franchise)
     .properties(
         title=f"{metric_title_map[metric_choice]} by Franchise",
-        width=700,
+        width=550,
         height=390
     )
 )
@@ -587,7 +587,7 @@ budget_scatter = (
     .transform_filter(click_franchise)
     .properties(
         title="Budget vs. Lifetime Gross",
-        width=700,
+        width=550,
         height=390
     )
 )
@@ -646,7 +646,7 @@ release_year_chart = (
     .transform_filter(click_franchise)
     .properties(
         title="Lifetime Gross by Release Year",
-        width=700,
+        width=550,
         height=350
     )
 )
@@ -664,7 +664,7 @@ rating_scatter = (
         x=alt.X(
             "Audience Rating:Q",
             title="Audience Rating (out of 5)",
-            scale=alt.Scale(domain=[0, 5])
+            scale=alt.Scale( domain=[2.5, 4.5], nice=False )
         ),
         y=alt.Y(
             "Lifetime Gross ($M):Q",
@@ -705,7 +705,7 @@ rating_scatter = (
     .transform_filter(click_franchise)
     .properties(
         title="Audience Rating vs. Lifetime Gross",
-        width=700,
+        width=550,
         height=350
     )
 )
