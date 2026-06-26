@@ -777,6 +777,7 @@ return_chart = (
     )
     .properties(
         title="Top 10 Movies by Return on Budget",
+        width=1078,
         height=340
     )
 )
@@ -843,7 +844,7 @@ coordinated_dashboard = (
 
 st.altair_chart(
     coordinated_dashboard,
-    use_container_width=True,
+    use_container_width=False,
     theme=None
 )
 
@@ -907,10 +908,6 @@ if show_genres and not movie_genres.empty:
                 ),
                 color=alt.Color(
                     "Genre:N",
-                    scale=alt.Scale(
-                        domain=list(GENRE_COLORS.keys()),
-                        range=list(GENRE_COLORS.values())
-                    ),
                     legend=alt.Legend(title="Genre")
                 ),
                 tooltip=[
