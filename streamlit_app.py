@@ -14,6 +14,18 @@ st.set_page_config(
     page_icon="🎬",
     layout="wide"
 )
+st.markdown(
+    """
+    <style>
+        [data-testid="stMainBlockContainer"] {
+            max-width: 100%;
+            padding-left: 0.5rem;
+            padding-right: 0.75rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 alt.data_transformers.disable_max_rows()
 
@@ -449,7 +461,11 @@ franchise_bar = (
         y=alt.Y(
             "Franchise:N",
             sort="-x",
-            title=None
+            title=None,
+            axis=alt.Axis(
+                labelLimit=125,
+                labelPadding=4
+            )
         ),
         x=alt.X(
             f"{metric_choice}:Q",
