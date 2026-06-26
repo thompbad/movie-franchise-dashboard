@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import altair as alt
@@ -29,22 +28,53 @@ FRANCHISE_MAP = {
     105: "MCU"
 }
 
+# Franchise labels and point shapes are also shown, so color is not the
+# only way users have to distinguish the franchises.
 FRANCHISE_COLORS = {
-    "MCU": "#F2C94C",
-    "Star Wars": "#4DCBE1",
-    "Wizarding World": "#B392F0",
-    "Middle Earth": "#6FCF97",
-    "Jurassic Park": "#FF7F6E"
+    "MCU": "#D9A400",
+    "Star Wars": "#1597B8",
+    "Wizarding World": "#7E57C2",
+    "Middle Earth": "#2E8B57",
+    "Jurassic Park": "#D95F4B"
+}
+
+FRANCHISE_SHAPES = {
+    "MCU": "circle",
+    "Star Wars": "square",
+    "Wizarding World": "diamond",
+    "Middle Earth": "triangle-up",
+    "Jurassic Park": "cross"
 }
 
 GENRE_COLORS = {
-    "Action": "#F2C94C",
-    "Adventure": "#F2994A",
-    "Sci-Fi": "#4DCBE1",
-    "Fantasy": "#B392F0",
-    "Drama": "#6FCF97",
-    "Comedy": "#FF7F6E"
+    "Action": "#D9A400",
+    "Adventure": "#D97706",
+    "Sci-Fi": "#1597B8",
+    "Fantasy": "#7E57C2",
+    "Drama": "#2E8B57",
+    "Comedy": "#D95F4B"
 }
+
+
+# --------------------------------------------------
+# Helpers
+# --------------------------------------------------
+def franchise_color_scale():
+    return alt.Scale(
+        domain=list(FRANCHISE_COLORS.keys()),
+        range=list(FRANCHISE_COLORS.values())
+    )
+
+
+def franchise_shape_scale():
+    return alt.Scale(
+        domain=list(FRANCHISE_SHAPES.keys()),
+        range=list(FRANCHISE_SHAPES.values())
+    )
+
+
+def safe_name(value, fallback="Not available"):
+    return fallback if pd.isna(value) else str(value)
 
 
 # --------------------------------------------------
@@ -71,7 +101,7 @@ def load_raw_data(uploaded_file=None):
 
 @st.cache_data
 def clean_movie_data(df):
-    """Clean movie-level rows and create clearer dashboard fields."""
+    """Clean movie rows and create dashboard-friendly fields."""
     movies = df.copy()
 
     numeric_columns = [
@@ -89,7 +119,7 @@ def clean_movie_data(df):
         if col in movies.columns:
             movies[col] = pd.to_numeric(movies[col], errors="coerce")
 
-    # Keep only the real movie rows. The CSV also contains genre/franchise lookup rows later on.
+    # The CSV also contains lookup rows after the real movie rows.
     movies = movies[
         movies["MovieID"].notna()
         & movies["FranchiseID"].notna()
@@ -101,50 +131,85 @@ def clean_movie_data(df):
     movies["Franchise"] = movies["FranchiseID"].map(FRANCHISE_MAP)
     movies = movies[movies["Franchise"].notna()].copy()
 
-    # Dashboard-friendly fields
     movies["Budget ($M)"] = movies["Budget"] / 1_000_000
     movies["Lifetime Gross ($M)"] = movies["Lifetime Gross"] / 1_000_000
-    movies["ROI"] = movies["Lifetime Gross"] / movies["Budget"]
+
+    # Return on Budget = lifetime gross divided by production budget.
+    # Invalid and zero budgets are left blank instead of creating infinity.
+    movies["Return on Budget"] = (
+        movies["Lifetime Gross"]
+        .div(movies["Budget"].where(movies["Budget"] > 0))
+    )
+
     movies["Audience Rating"] = movies["VoteAvg"]
-    movies["ReleaseDate"] = pd.to_datetime(movies["ReleaseDate"], errors="coerce")
+    movies["ReleaseDate"] = pd.to_datetime(
+        movies["ReleaseDate"],
+        errors="coerce"
+    )
 
     return movies
 
 
 @st.cache_data
 def clean_genre_data(df, movies):
-    """Extract the genre lookup section from the CSV and connect it back to movie rows."""
+    """Extract genre lookup rows and connect them to movie rows."""
     try:
-        genre_start = df.index[df["MovieID"].astype(str).eq("MovieGenreID")][0] + 1
-        genre_end = df.index[df["MovieID"].astype(str).eq("FranchiseId")][0]
+        movie_id_text = df["MovieID"].astype(str)
+        genre_start = df.index[movie_id_text.eq("MovieGenreID")][0] + 1
+        genre_end = df.index[movie_id_text.eq("FranchiseId")][0]
 
-        # In the genre section, the original column names do not match the values.
-        # Title column = MovieID, Lifetime Gross column = Genre.
-        genres = df.loc[genre_start:genre_end - 1, ["Title", "Lifetime Gross"]].copy()
+        # In this lookup section:
+        # Title column = MovieID
+        # Lifetime Gross column = Genre
+        genres = df.loc[
+            genre_start:genre_end - 1,
+            ["Title", "Lifetime Gross"]
+        ].copy()
+
         genres.columns = ["MovieID", "Genre"]
+        genres["MovieID"] = pd.to_numeric(
+            genres["MovieID"],
+            errors="coerce"
+        )
 
-        genres["MovieID"] = pd.to_numeric(genres["MovieID"], errors="coerce")
-        genres = genres[genres["MovieID"].notna() & genres["Genre"].notna()].copy()
+        genres = genres[
+            genres["MovieID"].notna()
+            & genres["Genre"].notna()
+        ].copy()
+
         genres["MovieID"] = genres["MovieID"].astype(int)
 
-        movie_lookup = movies[["MovieID", "Title", "Franchise"]].drop_duplicates()
-        movie_genres = genres.merge(movie_lookup, on="MovieID", how="inner")
-        return movie_genres
+        movie_lookup = movies[
+            ["MovieID", "Title", "Franchise", "Year"]
+        ].drop_duplicates()
 
-    except Exception:
-        return pd.DataFrame(columns=["MovieID", "Genre", "Title", "Franchise"])
+        return genres.merge(
+            movie_lookup,
+            on="MovieID",
+            how="inner"
+        )
+
+    except (IndexError, KeyError, TypeError):
+        return pd.DataFrame(
+            columns=["MovieID", "Genre", "Title", "Franchise", "Year"]
+        )
 
 
 # --------------------------------------------------
 # Load data
 # --------------------------------------------------
-uploaded_file = st.sidebar.file_uploader("Upload MovieFranchises.csv", type=["csv"])
+uploaded_file = st.sidebar.file_uploader(
+    "Upload MovieFranchises.csv",
+    type=["csv"]
+)
+
 raw_df = load_raw_data(uploaded_file)
 
 if raw_df is None:
     st.title("Movie Franchise Dashboard")
     st.warning(
-        "Upload MovieFranchises.csv in the sidebar, or place it in the same folder as streamlit_app.py."
+        "Upload MovieFranchises.csv in the sidebar, or place it "
+        "in the same folder as streamlit_app.py."
     )
     st.stop()
 
@@ -155,13 +220,18 @@ movie_genres = clean_genre_data(raw_df, movies)
 # --------------------------------------------------
 # Sidebar controls
 # --------------------------------------------------
-st.sidebar.title("Dashboard Controls")
+st.sidebar.title("Explore the Data")
+st.sidebar.caption(
+    "Adjust the filters below. Every chart and takeaway updates."
+)
 
 all_franchises = sorted(movies["Franchise"].dropna().unique())
+
 selected_franchises = st.sidebar.multiselect(
-    "Choose franchises",
+    "Franchises",
     options=all_franchises,
-    default=all_franchises
+    default=all_franchises,
+    help="Choose one or more franchises to compare."
 )
 
 min_year = int(movies["Year"].min())
@@ -172,17 +242,35 @@ year_range = st.sidebar.slider(
     min_value=min_year,
     max_value=max_year,
     value=(min_year, max_year),
-    step=1
+    step=1,
+    help="Only movies released during this period will be included."
 )
 
 metric_choice = st.sidebar.selectbox(
-    "Main comparison metric",
-    ["Lifetime Gross ($M)", "Budget ($M)", "ROI", "Audience Rating"],
+    "Franchise comparison metric",
+    [
+        "Lifetime Gross ($M)",
+        "Budget ($M)",
+        "Return on Budget",
+        "Audience Rating"
+    ],
     index=0
 )
 
-show_genres = st.sidebar.checkbox("Show genre section", value=True)
-show_table = st.sidebar.checkbox("Show filtered data table", value=True)
+show_genres = st.sidebar.checkbox(
+    "Show genre breakdown",
+    value=True
+)
+
+show_table = st.sidebar.checkbox(
+    "Show filtered data table",
+    value=False
+)
+
+st.sidebar.divider()
+st.sidebar.caption(
+    f"Active years: **{year_range[0]}–{year_range[1]}**"
+)
 
 filtered = movies[
     movies["Franchise"].isin(selected_franchises)
@@ -190,220 +278,552 @@ filtered = movies[
 ].copy()
 
 if filtered.empty:
-    st.warning("No movies match the current filters. Try widening the year range or selecting more franchises.")
+    st.warning(
+        "No movies match the current filters. Widen the year range "
+        "or select more franchises."
+    )
     st.stop()
 
 
 # --------------------------------------------------
-# Header and KPIs
+# Header and instructions
 # --------------------------------------------------
 st.title("Movie Franchise Performance Dashboard")
-st.caption(
-    "Use the sidebar filters, then click a franchise bar in the first chart to update the connected visualizations."
+st.write(
+    "Compare how major movie franchises perform across revenue, "
+    "budget, audience ratings, release years, and return on budget."
 )
 
+st.info(
+    "**How to explore:** Use the sidebar filters, hover over any chart "
+    "for exact values, and click a franchise bar to focus every connected "
+    "chart. Double-click the chart background to clear the selection.",
+    icon="🧭"
+)
+
+
+# --------------------------------------------------
+# KPI summary
+# --------------------------------------------------
 total_gross = filtered["Lifetime Gross ($M)"].sum()
-avg_roi = filtered.loc[filtered["Budget ($M)"] > 0, "ROI"].mean()
+valid_returns = filtered["Return on Budget"].dropna()
+avg_return = valid_returns.mean()
 avg_rating = filtered["Audience Rating"].mean()
 movie_count = len(filtered)
 
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-kpi1.metric("Movies Shown", f"{movie_count}")
-kpi2.metric("Total Lifetime Gross", f"${total_gross:,.0f}M")
-kpi3.metric("Average ROI", f"{avg_roi:.1f}x")
-kpi4.metric("Average Audience Rating", f"{avg_rating:.2f}")
+
+kpi1.metric(
+    "Movies Shown",
+    f"{movie_count}"
+)
+
+kpi2.metric(
+    "Total Lifetime Gross",
+    f"${total_gross:,.0f}M"
+)
+
+kpi3.metric(
+    "Average Return on Budget",
+    f"{avg_return:.1f}x" if pd.notna(avg_return) else "N/A",
+    help="Lifetime gross divided by production budget."
+)
+
+kpi4.metric(
+    "Average Audience Rating",
+    f"{avg_rating:.2f} / 5" if pd.notna(avg_rating) else "N/A"
+)
 
 
 # --------------------------------------------------
-# Franchise summary chart with click interaction
+# Franchise summary and key takeaways
 # --------------------------------------------------
 franchise_summary = (
     filtered.groupby("Franchise", as_index=False)
     .agg(
         **{
-            "Lifetime Gross ($M)": ("Lifetime Gross ($M)", "sum"),
-            "Budget ($M)": ("Budget ($M)", "sum"),
-            "ROI": ("ROI", "mean"),
-            "Audience Rating": ("Audience Rating", "mean"),
-            "Movies": ("Title", "count")
+            "Lifetime Gross ($M)": (
+                "Lifetime Gross ($M)",
+                "sum"
+            ),
+            "Budget ($M)": (
+                "Budget ($M)",
+                "sum"
+            ),
+            "Return on Budget": (
+                "Return on Budget",
+                "mean"
+            ),
+            "Audience Rating": (
+                "Audience Rating",
+                "mean"
+            ),
+            "Movies": (
+                "Title",
+                "count"
+            )
         }
     )
 )
 
+highest_gross_row = franchise_summary.loc[
+    franchise_summary["Lifetime Gross ($M)"].idxmax()
+]
+
+valid_franchise_returns = franchise_summary.dropna(
+    subset=["Return on Budget"]
+)
+
+best_return_row = (
+    valid_franchise_returns.loc[
+        valid_franchise_returns["Return on Budget"].idxmax()
+    ]
+    if not valid_franchise_returns.empty
+    else None
+)
+
+valid_franchise_ratings = franchise_summary.dropna(
+    subset=["Audience Rating"]
+)
+
+best_rating_row = (
+    valid_franchise_ratings.loc[
+        valid_franchise_ratings["Audience Rating"].idxmax()
+    ]
+    if not valid_franchise_ratings.empty
+    else None
+)
+
+st.subheader("Key Takeaways")
+
+takeaway1, takeaway2, takeaway3 = st.columns(3)
+
+with takeaway1:
+    st.metric(
+        "Highest Total Gross",
+        safe_name(highest_gross_row["Franchise"]),
+        f"${highest_gross_row['Lifetime Gross ($M)']:,.0f}M"
+    )
+
+with takeaway2:
+    if best_return_row is not None:
+        st.metric(
+            "Best Average Return",
+            safe_name(best_return_row["Franchise"]),
+            f"{best_return_row['Return on Budget']:.2f}x"
+        )
+    else:
+        st.metric("Best Average Return", "N/A")
+
+with takeaway3:
+    if best_rating_row is not None:
+        st.metric(
+            "Highest Audience Rating",
+            safe_name(best_rating_row["Franchise"]),
+            f"{best_rating_row['Audience Rating']:.2f} / 5"
+        )
+    else:
+        st.metric("Highest Audience Rating", "N/A")
+
+
+# --------------------------------------------------
+# Connected charts
+# --------------------------------------------------
 click_franchise = alt.selection_point(
     fields=["Franchise"],
     empty=True,
     name="ClickFranchise"
 )
 
+metric_title_map = {
+    "Lifetime Gross ($M)": "Total Lifetime Gross ($M)",
+    "Budget ($M)": "Total Budget ($M)",
+    "Return on Budget": "Average Return on Budget",
+    "Audience Rating": "Average Audience Rating (out of 5)"
+}
+
+metric_format_map = {
+    "Lifetime Gross ($M)": ",.0f",
+    "Budget ($M)": ",.0f",
+    "Return on Budget": ".2f",
+    "Audience Rating": ".2f"
+}
+
 franchise_bar = (
     alt.Chart(franchise_summary)
     .mark_bar(cornerRadiusEnd=5)
     .encode(
-        y=alt.Y("Franchise:N", sort="-x", title=None),
-        x=alt.X(f"{metric_choice}:Q", title=metric_choice),
+        y=alt.Y(
+            "Franchise:N",
+            sort="-x",
+            title=None
+        ),
+        x=alt.X(
+            f"{metric_choice}:Q",
+            title=metric_title_map[metric_choice],
+            axis=alt.Axis(
+                format=metric_format_map[metric_choice]
+            )
+        ),
         color=alt.Color(
             "Franchise:N",
-            scale=alt.Scale(
-                domain=list(FRANCHISE_COLORS.keys()),
-                range=list(FRANCHISE_COLORS.values())
-            ),
+            scale=franchise_color_scale(),
             legend=None
         ),
-        opacity=alt.condition(click_franchise, alt.value(1), alt.value(0.35)),
+        opacity=alt.condition(
+            click_franchise,
+            alt.value(1),
+            alt.value(0.3)
+        ),
         tooltip=[
-            alt.Tooltip("Franchise:N", title="Franchise"),
-            alt.Tooltip("Movies:Q", title="Movies", format=","),
-            alt.Tooltip("Lifetime Gross ($M):Q", title="Total gross ($M)", format=",.0f"),
-            alt.Tooltip("Budget ($M):Q", title="Total budget ($M)", format=",.0f"),
-            alt.Tooltip("ROI:Q", title="Average ROI", format=".2f"),
-            alt.Tooltip("Audience Rating:Q", title="Average audience rating", format=".2f"),
-        ],
+            alt.Tooltip(
+                "Franchise:N",
+                title="Franchise"
+            ),
+            alt.Tooltip(
+                "Movies:Q",
+                title="Movies",
+                format=","
+            ),
+            alt.Tooltip(
+                "Lifetime Gross ($M):Q",
+                title="Total gross ($M)",
+                format=",.0f"
+            ),
+            alt.Tooltip(
+                "Budget ($M):Q",
+                title="Total budget ($M)",
+                format=",.0f"
+            ),
+            alt.Tooltip(
+                "Return on Budget:Q",
+                title="Average return",
+                format=".2f"
+            ),
+            alt.Tooltip(
+                "Audience Rating:Q",
+                title="Avg. rating (out of 5)",
+                format=".2f"
+            )
+        ]
     )
     .add_params(click_franchise)
     .properties(
-        title=f"{metric_choice} by Franchise",
-        height=330
+        title=f"{metric_title_map[metric_choice]} by Franchise",
+        height=320
     )
 )
 
-
-# --------------------------------------------------
-# Coordinated movie-level charts
-# --------------------------------------------------
 budget_scatter = (
     alt.Chart(filtered)
-    .mark_circle(size=85, opacity=0.8)
+    .mark_point(
+        size=110,
+        filled=True,
+        opacity=0.82,
+        stroke="white",
+        strokeWidth=0.7
+    )
     .encode(
-        x=alt.X("Budget ($M):Q", title="Budget ($M)"),
-        y=alt.Y("Lifetime Gross ($M):Q", title="Lifetime Gross ($M)"),
+        x=alt.X(
+            "Budget ($M):Q",
+            title="Budget ($M)"
+        ),
+        y=alt.Y(
+            "Lifetime Gross ($M):Q",
+            title="Lifetime Gross ($M)"
+        ),
         color=alt.Color(
             "Franchise:N",
-            scale=alt.Scale(
-                domain=list(FRANCHISE_COLORS.keys()),
-                range=list(FRANCHISE_COLORS.values())
-            ),
+            scale=franchise_color_scale(),
             legend=alt.Legend(title="Franchise")
         ),
+        shape=alt.Shape(
+            "Franchise:N",
+            scale=franchise_shape_scale(),
+            legend=alt.Legend(title="Franchise shape")
+        ),
         tooltip=[
-            alt.Tooltip("Title:N", title="Movie"),
-            alt.Tooltip("Franchise:N", title="Franchise"),
-            alt.Tooltip("Year:Q", title="Year", format=".0f"),
-            alt.Tooltip("Budget ($M):Q", title="Budget ($M)", format=",.0f"),
-            alt.Tooltip("Lifetime Gross ($M):Q", title="Lifetime gross ($M)", format=",.0f"),
-            alt.Tooltip("ROI:Q", title="ROI", format=".2f"),
-            alt.Tooltip("Audience Rating:Q", title="Audience rating", format=".2f"),
-        ],
+            alt.Tooltip(
+                "Title:N",
+                title="Movie"
+            ),
+            alt.Tooltip(
+                "Franchise:N",
+                title="Franchise"
+            ),
+            alt.Tooltip(
+                "Year:Q",
+                title="Year",
+                format=".0f"
+            ),
+            alt.Tooltip(
+                "Budget ($M):Q",
+                title="Budget ($M)",
+                format=",.0f"
+            ),
+            alt.Tooltip(
+                "Lifetime Gross ($M):Q",
+                title="Lifetime gross ($M)",
+                format=",.0f"
+            ),
+            alt.Tooltip(
+                "Return on Budget:Q",
+                title="Return on budget",
+                format=".2f"
+            ),
+            alt.Tooltip(
+                "Audience Rating:Q",
+                title="Rating (out of 5)",
+                format=".2f"
+            )
+        ]
     )
     .transform_filter(click_franchise)
     .properties(
         title="Budget vs. Lifetime Gross",
-        height=330
+        height=320
     )
 )
 
 release_year_chart = (
     alt.Chart(filtered)
-    .mark_circle(size=75, opacity=0.85)
+    .mark_point(
+        size=100,
+        filled=True,
+        opacity=0.82,
+        stroke="white",
+        strokeWidth=0.7
+    )
     .encode(
-        x=alt.X("Year:Q", title="Release Year", scale=alt.Scale(zero=False)),
-        y=alt.Y("Lifetime Gross ($M):Q", title="Lifetime Gross ($M)"),
+        x=alt.X(
+            "Year:Q",
+            title="Release Year",
+            scale=alt.Scale(zero=False)
+        ),
+        y=alt.Y(
+            "Lifetime Gross ($M):Q",
+            title="Lifetime Gross ($M)"
+        ),
         color=alt.Color(
             "Franchise:N",
-            scale=alt.Scale(
-                domain=list(FRANCHISE_COLORS.keys()),
-                range=list(FRANCHISE_COLORS.values())
-            ),
+            scale=franchise_color_scale(),
+            legend=None
+        ),
+        shape=alt.Shape(
+            "Franchise:N",
+            scale=franchise_shape_scale(),
             legend=None
         ),
         tooltip=[
-            alt.Tooltip("Title:N", title="Movie"),
-            alt.Tooltip("Franchise:N", title="Franchise"),
-            alt.Tooltip("Year:Q", title="Year", format=".0f"),
-            alt.Tooltip("Lifetime Gross ($M):Q", title="Lifetime gross ($M)", format=",.0f"),
-            alt.Tooltip("Audience Rating:Q", title="Audience rating", format=".2f"),
-        ],
+            alt.Tooltip(
+                "Title:N",
+                title="Movie"
+            ),
+            alt.Tooltip(
+                "Franchise:N",
+                title="Franchise"
+            ),
+            alt.Tooltip(
+                "Year:Q",
+                title="Year",
+                format=".0f"
+            ),
+            alt.Tooltip(
+                "Lifetime Gross ($M):Q",
+                title="Lifetime gross ($M)",
+                format=",.0f"
+            ),
+            alt.Tooltip(
+                "Audience Rating:Q",
+                title="Rating (out of 5)",
+                format=".2f"
+            )
+        ]
     )
     .transform_filter(click_franchise)
     .properties(
         title="Lifetime Gross by Release Year",
-        height=280
+        height=285
     )
 )
 
 rating_scatter = (
     alt.Chart(filtered)
-    .mark_circle(size=75, opacity=0.85)
+    .mark_point(
+        size=100,
+        filled=True,
+        opacity=0.82,
+        stroke="white",
+        strokeWidth=0.7
+    )
     .encode(
-        x=alt.X("Audience Rating:Q", title="Audience Rating", scale=alt.Scale(zero=False)),
-        y=alt.Y("Lifetime Gross ($M):Q", title="Lifetime Gross ($M)"),
+        x=alt.X(
+            "Audience Rating:Q",
+            title="Audience Rating (out of 5)",
+            scale=alt.Scale(domain=[0, 5])
+        ),
+        y=alt.Y(
+            "Lifetime Gross ($M):Q",
+            title="Lifetime Gross ($M)"
+        ),
         color=alt.Color(
             "Franchise:N",
-            scale=alt.Scale(
-                domain=list(FRANCHISE_COLORS.keys()),
-                range=list(FRANCHISE_COLORS.values())
-            ),
+            scale=franchise_color_scale(),
+            legend=None
+        ),
+        shape=alt.Shape(
+            "Franchise:N",
+            scale=franchise_shape_scale(),
             legend=None
         ),
         tooltip=[
-            alt.Tooltip("Title:N", title="Movie"),
-            alt.Tooltip("Franchise:N", title="Franchise"),
-            alt.Tooltip("Audience Rating:Q", title="Audience rating", format=".2f"),
-            alt.Tooltip("Lifetime Gross ($M):Q", title="Lifetime gross ($M)", format=",.0f"),
-            alt.Tooltip("ROI:Q", title="ROI", format=".2f"),
-        ],
+            alt.Tooltip(
+                "Title:N",
+                title="Movie"
+            ),
+            alt.Tooltip(
+                "Franchise:N",
+                title="Franchise"
+            ),
+            alt.Tooltip(
+                "Audience Rating:Q",
+                title="Rating (out of 5)",
+                format=".2f"
+            ),
+            alt.Tooltip(
+                "Lifetime Gross ($M):Q",
+                title="Lifetime gross ($M)",
+                format=",.0f"
+            ),
+            alt.Tooltip(
+                "Return on Budget:Q",
+                title="Return on budget",
+                format=".2f"
+            )
+        ]
     )
     .transform_filter(click_franchise)
     .properties(
         title="Audience Rating vs. Lifetime Gross",
-        height=280
+        height=285
     )
 )
 
-roi_chart = (
-    alt.Chart(filtered[filtered["Budget ($M)"] > 0])
+roi_source = filtered[
+    filtered["Return on Budget"].notna()
+].copy()
+
+return_chart = (
+    alt.Chart(roi_source)
+    .transform_filter(click_franchise)
+    .transform_window(
+        ReturnRank="rank(Return on Budget)",
+        sort=[
+            alt.SortField(
+                "Return on Budget",
+                order="descending"
+            )
+        ]
+    )
+    .transform_filter("datum.ReturnRank <= 10")
     .mark_bar(cornerRadiusEnd=5)
     .encode(
-        x=alt.X("ROI:Q", title="ROI: Lifetime Gross ÷ Budget"),
-        y=alt.Y("Title:N", sort="-x", title=None),
+        x=alt.X(
+            "Return on Budget:Q",
+            title="Return on Budget (Lifetime Gross ÷ Budget)"
+        ),
+        y=alt.Y(
+            "Title:N",
+            sort="-x",
+            title=None,
+            axis=alt.Axis(labelLimit=280)
+        ),
         color=alt.Color(
             "Franchise:N",
-            scale=alt.Scale(
-                domain=list(FRANCHISE_COLORS.keys()),
-                range=list(FRANCHISE_COLORS.values())
-            ),
+            scale=franchise_color_scale(),
             legend=None
         ),
         tooltip=[
-            alt.Tooltip("Title:N", title="Movie"),
-            alt.Tooltip("Franchise:N", title="Franchise"),
-            alt.Tooltip("ROI:Q", title="ROI", format=".2f"),
-            alt.Tooltip("Budget ($M):Q", title="Budget ($M)", format=",.0f"),
-            alt.Tooltip("Lifetime Gross ($M):Q", title="Lifetime gross ($M)", format=",.0f"),
-            alt.Tooltip("Audience Rating:Q", title="Audience rating", format=".2f"),
-        ],
+            alt.Tooltip(
+                "Title:N",
+                title="Movie"
+            ),
+            alt.Tooltip(
+                "Franchise:N",
+                title="Franchise"
+            ),
+            alt.Tooltip(
+                "Return on Budget:Q",
+                title="Return on budget",
+                format=".2f"
+            ),
+            alt.Tooltip(
+                "Budget ($M):Q",
+                title="Budget ($M)",
+                format=",.0f"
+            ),
+            alt.Tooltip(
+                "Lifetime Gross ($M):Q",
+                title="Lifetime gross ($M)",
+                format=",.0f"
+            ),
+            alt.Tooltip(
+                "Audience Rating:Q",
+                title="Rating (out of 5)",
+                format=".2f"
+            )
+        ]
     )
     .properties(
-        title="Movie-Level Return on Budget",
-        height=280
+        title="Top 10 Movies by Return on Budget",
+        height=340
     )
 )
 
 st.subheader("Connected Franchise View")
-st.write("Click a franchise in the bar chart to filter the charts next to and below it.")
+st.caption(
+    "Click one franchise in the first chart to update every chart below."
+)
 
-top_row = alt.hconcat(franchise_bar, budget_scatter).resolve_scale(color="independent")
-bottom_row = alt.hconcat(release_year_chart, rating_scatter).resolve_scale(color="independent")
-coordinated_dashboard = alt.vconcat(top_row, bottom_row).configure_view(strokeWidth=0)
+top_row = alt.hconcat(
+    franchise_bar,
+    budget_scatter
+).resolve_scale(color="independent", shape="independent")
 
-st.altair_chart(coordinated_dashboard, use_container_width=True)
+middle_row = alt.hconcat(
+    release_year_chart,
+    rating_scatter
+).resolve_scale(color="independent", shape="independent")
 
+coordinated_dashboard = (
+    alt.vconcat(
+        top_row,
+        middle_row,
+        return_chart,
+        spacing=28
+    )
+    .configure_view(strokeWidth=0)
+    .configure_axis(
+        labelFontSize=12,
+        titleFontSize=13,
+        labelColor="#262730",
+        titleColor="#262730"
+    )
+    .configure_title(
+        fontSize=16,
+        anchor="start",
+        color="#262730"
+    )
+    .configure_legend(
+        labelFontSize=11,
+        titleFontSize=12
+    )
+)
 
-# --------------------------------------------------
-# ROI section
-# --------------------------------------------------
-st.subheader("Return on Budget")
-st.altair_chart(roi_chart, use_container_width=True)
+st.altair_chart(
+    coordinated_dashboard,
+    use_container_width=True
+)
 
 
 # --------------------------------------------------
@@ -411,50 +831,115 @@ st.altair_chart(roi_chart, use_container_width=True)
 # --------------------------------------------------
 if show_genres and not movie_genres.empty:
     st.subheader("Genre Breakdown")
-
-    filtered_genres = movie_genres[movie_genres["Franchise"].isin(selected_franchises)].copy()
-
-    genre_counts = (
-        filtered_genres.groupby(["Franchise", "Genre"], as_index=False)
-        .size()
-        .rename(columns={"size": "Count"})
+    st.caption(
+        "The genre view follows both the franchise and release-year filters."
     )
 
-    genre_counts["Total Tags"] = genre_counts.groupby("Franchise")["Count"].transform("sum")
-    genre_counts["Percent"] = (genre_counts["Count"] / genre_counts["Total Tags"]) * 100
+    # Filter genre tags by the exact movies currently visible.
+    filtered_movie_ids = filtered["MovieID"].unique()
 
-    genre_chart = (
-        alt.Chart(genre_counts)
-        .mark_bar()
-        .encode(
-            y=alt.Y("Franchise:N", title=None),
-            x=alt.X("Percent:Q", stack="normalize", title="Percent of Genre Tags"),
-            color=alt.Color(
-                "Genre:N",
-                scale=alt.Scale(
-                    domain=list(GENRE_COLORS.keys()),
-                    range=list(GENRE_COLORS.values())
-                ),
-                legend=alt.Legend(title="Genre")
-            ),
-            tooltip=[
-                alt.Tooltip("Franchise:N", title="Franchise"),
-                alt.Tooltip("Genre:N", title="Genre"),
-                alt.Tooltip("Count:Q", title="Genre tags"),
-                alt.Tooltip("Percent:Q", title="Percent", format=".1f")
-            ],
+    filtered_genres = movie_genres[
+        movie_genres["MovieID"].isin(filtered_movie_ids)
+    ].copy()
+
+    if filtered_genres.empty:
+        st.info(
+            "No genre tags are available for the current selection."
         )
-        .properties(height=280, title="Genre Mix by Franchise")
-    )
+    else:
+        genre_counts = (
+            filtered_genres
+            .groupby(
+                ["Franchise", "Genre"],
+                as_index=False
+            )
+            .size()
+            .rename(columns={"size": "Count"})
+        )
 
-    st.altair_chart(genre_chart, use_container_width=True)
+        genre_counts["Total Tags"] = (
+            genre_counts
+            .groupby("Franchise")["Count"]
+            .transform("sum")
+        )
+
+        genre_counts["Percent"] = (
+            genre_counts["Count"]
+            / genre_counts["Total Tags"]
+            * 100
+        )
+
+        genre_chart = (
+            alt.Chart(genre_counts)
+            .mark_bar()
+            .encode(
+                y=alt.Y(
+                    "Franchise:N",
+                    title=None
+                ),
+                x=alt.X(
+                    "Count:Q",
+                    stack="normalize",
+                    title="Share of Genre Tags",
+                    axis=alt.Axis(format="%")
+                ),
+                color=alt.Color(
+                    "Genre:N",
+                    scale=alt.Scale(
+                        domain=list(GENRE_COLORS.keys()),
+                        range=list(GENRE_COLORS.values())
+                    ),
+                    legend=alt.Legend(title="Genre")
+                ),
+                tooltip=[
+                    alt.Tooltip(
+                        "Franchise:N",
+                        title="Franchise"
+                    ),
+                    alt.Tooltip(
+                        "Genre:N",
+                        title="Genre"
+                    ),
+                    alt.Tooltip(
+                        "Count:Q",
+                        title="Genre tags"
+                    ),
+                    alt.Tooltip(
+                        "Percent:Q",
+                        title="Share",
+                        format=".1f"
+                    )
+                ]
+            )
+            .properties(
+                height=290,
+                title="Genre Mix by Franchise"
+            )
+            .configure_view(strokeWidth=0)
+            .configure_axis(
+                labelFontSize=12,
+                titleFontSize=13
+            )
+            .configure_title(
+                fontSize=16,
+                anchor="start"
+            )
+        )
+
+        st.altair_chart(
+            genre_chart,
+            use_container_width=True
+        )
 
 
 # --------------------------------------------------
 # Data table
 # --------------------------------------------------
 if show_table:
-    with st.expander("View filtered movie data"):
+    with st.expander(
+        "View filtered movie data",
+        expanded=False
+    ):
         display_cols = [
             "Title",
             "Franchise",
@@ -464,29 +949,56 @@ if show_table:
             "Runtime",
             "Budget ($M)",
             "Lifetime Gross ($M)",
-            "ROI",
+            "Return on Budget",
             "Audience Rating",
             "VoteCount"
         ]
 
-        table = filtered[display_cols].sort_values("Lifetime Gross ($M)", ascending=False).copy()
-        table = table.rename(columns={"VoteCount": "Vote Count"})
+        table = (
+            filtered[display_cols]
+            .sort_values(
+                "Lifetime Gross ($M)",
+                ascending=False
+            )
+            .copy()
+            .rename(
+                columns={
+                    "Audience Rating": "Audience Rating (out of 5)",
+                    "VoteCount": "Vote Count"
+                }
+            )
+        )
 
         st.dataframe(
             table,
             use_container_width=True,
-            hide_index=True
+            hide_index=True,
+            column_config={
+                "Budget ($M)": st.column_config.NumberColumn(
+                    format="$%.1fM"
+                ),
+                "Lifetime Gross ($M)": st.column_config.NumberColumn(
+                    format="$%.1fM"
+                ),
+                "Return on Budget": st.column_config.NumberColumn(
+                    format="%.2fx"
+                ),
+                "Audience Rating (out of 5)": st.column_config.NumberColumn(
+                    format="%.2f"
+                ),
+                "Vote Count": st.column_config.NumberColumn(
+                    format="%d"
+                )
+            }
         )
 
 
 # --------------------------------------------------
-# Design note for assignment explanation
+# Footer
 # --------------------------------------------------
-st.markdown(
-    """
-    **Interaction note:** The sidebar controls let users filter the dataset by franchise and release year.
-    The franchise bar chart also supports direct clicking: selecting a franchise updates the scatterplot,
-    release-year chart, audience-rating chart, and ROI chart. Tooltips are included throughout so users can
-    inspect movie-level values without crowding the dashboard with labels.
-    """
+st.divider()
+st.caption(
+    "Return on Budget represents lifetime gross divided by production "
+    "budget. Results are based on the franchises, years, and movies "
+    "currently selected."
 )
