@@ -443,6 +443,8 @@ with takeaway3:
 click_franchise = alt.selection_point(
     fields=["Franchise"],
     empty=True,
+    clear="dblclick",
+    toggle=False,
     name="ClickFranchise"
 )
 
@@ -787,11 +789,24 @@ return_chart = (
         height=340
     )
 )
+if "connected_chart_reset" not in st.session_state:
+    st.session_state.connected_chart_reset = 0
+heading_col, reset_col = st.columns([4, 1])
 
-st.subheader("Connected Franchise View")
-st.caption(
-    "Click one franchise in the first chart to update every chart below."
-)
+with heading_col:
+    st.subheader("Connected Franchise View")
+    st.caption(
+        "Click a franchise to focus the connected charts. "
+        "Double-click an empty area or use the reset button to show all franchises."
+    )
+
+with reset_col:
+    st.write("")
+    if st.button(
+        "Show all franchises",
+        use_container_width=True
+    ):
+        st.session_state.connected_chart_reset += 1
 
 top_row = alt.hconcat(
     franchise_bar,
@@ -852,7 +867,8 @@ with st.container(key="connected_chart_block"):
     st.altair_chart(
         coordinated_dashboard,
         use_container_width=False,
-        theme=None
+        theme=None,
+        key = f"connected_dashboard_{st.session_state.connected_chart_reset}"
     )
 
 
