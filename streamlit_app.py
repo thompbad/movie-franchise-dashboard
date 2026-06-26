@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 
 
+
 # --------------------------------------------------
 # Page setup
 # --------------------------------------------------
@@ -13,35 +14,10 @@ st.set_page_config(
     page_icon="🎬",
     layout="wide"
 )
-st.set_page_config(
-    page_title="Movie Franchise Dashboard",
-    page_icon="🎬",
-    layout="wide"
-)
-
-st.markdown(
-    """
-    <style>
-        div[data-testid="stVegaLiteChart"] {
-            justify-content: flex-start !important;
-        }
-
-        div[data-testid="stVegaLiteChart"] > div {
-            margin-left: 0 !important;
-            margin-right: auto !important;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
 
 alt.data_transformers.disable_max_rows()
-alt.data_transformers.disable_max_rows()
-
 
 CHART_TEXT_COLOR = "#E5E7EB"
-
-
 
 
 # --------------------------------------------------
@@ -553,7 +529,7 @@ budget_scatter = (
         color=alt.Color(
             "Franchise:N",
             scale=franchise_color_scale(),
-            legend=alt.Legend(title="Franchise")
+            legend=alt.Legend( title="Franchise", orient="top", direction="horizontal", columns=5 )
         ),
 
         tooltip=[
@@ -796,22 +772,31 @@ st.caption(
 
 top_row = alt.hconcat(
     franchise_bar,
-    budget_scatter
-).resolve_scale(color="independent")
+    budget_scatter,
+    spacing=18
+).resolve_scale(
+    color="independent"
+)
 
 middle_row = alt.hconcat(
     release_year_chart,
-    rating_scatter
-).resolve_scale(color="independent")
+    rating_scatter,
+    spacing=18
+).resolve_scale(
+    color="independent"
+)
 
 coordinated_dashboard = (
     alt.vconcat(
         top_row,
         middle_row,
         return_chart,
-        spacing=28
+        spacing=28,
+        center=False
     )
-    .configure_view(strokeWidth=0)
+    .configure_view(
+        strokeWidth=0
+    )
     .configure_axis(
         labelFontSize=15,
         titleFontSize=17,
@@ -842,7 +827,7 @@ coordinated_dashboard = (
 
 st.altair_chart(
     coordinated_dashboard,
-    use_container_width=False,
+    use_container_width=True,
     theme=None
 )
 
