@@ -16,6 +16,14 @@ st.set_page_config(
 
 alt.data_transformers.disable_max_rows()
 
+theme_base = st.get_option("theme.base") or "light"
+
+CHART_TEXT_COLOR = (
+    "#E5E7EB"
+    if theme_base == "dark"
+    else "#31333F"
+)
+
 
 # --------------------------------------------------
 # Color and label setup
@@ -516,8 +524,8 @@ franchise_bar = (
 
 budget_scatter = (
     alt.Chart(filtered)
-    .mark_point(
-        size=110,
+    .mark_circle(
+        size=130,
         filled=True,
         opacity=0.82,
         stroke="white",
@@ -537,11 +545,7 @@ budget_scatter = (
             scale=franchise_color_scale(),
             legend=alt.Legend(title="Franchise")
         ),
-        shape=alt.Shape(
-            "Franchise:N",
-            scale=franchise_shape_scale(),
-            legend=alt.Legend(title="Franchise shape")
-        ),
+
         tooltip=[
             alt.Tooltip(
                 "Title:N",
@@ -587,7 +591,7 @@ budget_scatter = (
 
 release_year_chart = (
     alt.Chart(filtered)
-    .mark_point(
+    .mark_circle(
         size=100,
         filled=True,
         opacity=0.82,
@@ -649,7 +653,7 @@ release_year_chart = (
 
 rating_scatter = (
     alt.Chart(filtered)
-    .mark_point(
+    .mark_circle(
         size=100,
         filled=True,
         opacity=0.82,
@@ -804,19 +808,30 @@ coordinated_dashboard = (
     )
     .configure_view(strokeWidth=0)
     .configure_axis(
-        labelFontSize=12,
-        titleFontSize=13,
-        labelColor="#262730",
-        titleColor="#262730"
+        labelFontSize=15,
+        titleFontSize=17,
+        labelFontWeight="bold",
+        titleFontWeight="bold",
+        labelColor=CHART_TEXT_COLOR,
+        titleColor=CHART_TEXT_COLOR,
+        labelPadding=8,
+        titlePadding=12
     )
     .configure_title(
-        fontSize=16,
+        fontSize=20,
+        fontWeight="bold",
         anchor="start",
-        color="#262730"
+        color=CHART_TEXT_COLOR,
+        offset=12
     )
     .configure_legend(
-        labelFontSize=11,
-        titleFontSize=12
+        labelFontSize=14,
+        titleFontSize=15,
+        labelFontWeight="bold",
+        titleFontWeight="bold",
+        labelColor=CHART_TEXT_COLOR,
+        titleColor=CHART_TEXT_COLOR,
+        symbolSize=120
     )
 )
 
@@ -917,12 +932,30 @@ if show_genres and not movie_genres.empty:
             )
             .configure_view(strokeWidth=0)
             .configure_axis(
-                labelFontSize=12,
-                titleFontSize=13
+                labelFontSize=15,
+                titleFontSize=17,
+                labelFontWeight="bold",
+                titleFontWeight="bold",
+                labelColor=CHART_TEXT_COLOR,
+                titleColor=CHART_TEXT_COLOR,
+                labelPadding=8,
+                titlePadding=12
             )
             .configure_title(
-                fontSize=16,
-                anchor="start"
+                fontSize=20,
+                fontWeight="bold",
+                anchor="start",
+                color=CHART_TEXT_COLOR,
+                offset=12
+            )
+            .configure_legend(
+                labelFontSize=14,
+                titleFontSize=15,
+                labelFontWeight="bold",
+                titleFontWeight="bold",
+                labelColor=CHART_TEXT_COLOR,
+                titleColor=CHART_TEXT_COLOR,
+                symbolSize=120
             )
         )
 
