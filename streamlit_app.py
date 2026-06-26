@@ -724,7 +724,6 @@ roi_source = filtered[
 
 return_chart = (
     alt.Chart(roi_source)
-    .transform_filter(click_franchise)
     .transform_window(
         ReturnRank="rank(Return on Budget)",
         sort=[
@@ -828,7 +827,6 @@ coordinated_dashboard = (
     alt.vconcat(
         top_row,
         middle_row,
-        return_chart,
         spacing=28,
         center=False
     )
@@ -870,7 +868,44 @@ with st.container(key="connected_chart_block"):
         theme=None,
         key = f"connected_dashboard_{st.session_state.connected_chart_reset}"
     )
+styled_return_chart = (
+    return_chart
+    .configure_view(
+        strokeWidth=0
+    )
+    .configure_axis(
+        labelFontSize=15,
+        titleFontSize=17,
+        labelFontWeight="bold",
+        titleFontWeight="bold",
+        labelColor=CHART_TEXT_COLOR,
+        titleColor=CHART_TEXT_COLOR,
+        labelPadding=8,
+        titlePadding=12
+    )
+    .configure_title(
+        fontSize=20,
+        fontWeight="bold",
+        anchor="start",
+        color=CHART_TEXT_COLOR,
+        offset=12
+    )
+    .configure_legend(
+        labelFontSize=14,
+        titleFontSize=15,
+        labelFontWeight="bold",
+        titleFontWeight="bold",
+        labelColor=CHART_TEXT_COLOR,
+        titleColor=CHART_TEXT_COLOR,
+        symbolSize=120
+    )
+)
 
+st.altair_chart(
+    styled_return_chart,
+    use_container_width=True,
+    theme=None
+)
 
 # --------------------------------------------------
 # Genre section
