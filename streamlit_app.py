@@ -13,7 +13,29 @@ st.set_page_config(
     page_icon="🎬",
     layout="wide"
 )
+st.set_page_config(
+    page_title="Movie Franchise Dashboard",
+    page_icon="🎬",
+    layout="wide"
+)
 
+st.markdown(
+    """
+    <style>
+        div[data-testid="stVegaLiteChart"] {
+            justify-content: flex-start !important;
+        }
+
+        div[data-testid="stVegaLiteChart"] > div {
+            margin-left: 0 !important;
+            margin-right: auto !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+alt.data_transformers.disable_max_rows()
 alt.data_transformers.disable_max_rows()
 
 
@@ -820,7 +842,7 @@ coordinated_dashboard = (
 
 st.altair_chart(
     coordinated_dashboard,
-    use_container_width=True,
+    use_container_width=False,
     theme=None
 )
 
