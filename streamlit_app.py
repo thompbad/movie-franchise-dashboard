@@ -17,10 +17,16 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-        [data-testid="stMainBlockContainer"] {
-            max-width: 100%;
-            padding-left: 0.5rem;
-            padding-right: 0.75rem;
+        @media (min-width: 1100px) {
+            .st-key-connected_chart_block {
+                transform: translateX(-105px);
+                width: calc(100% + 105px);
+            }
+
+            .st-key-connected_chart_block
+            div[data-testid="stVegaLiteChart"] {
+                justify-content: flex-start !important;
+            }
         }
     </style>
     """,
