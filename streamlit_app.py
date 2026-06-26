@@ -848,11 +848,12 @@ coordinated_dashboard = (
     )
 )
 
-st.altair_chart(
-    coordinated_dashboard,
-    use_container_width=False,
-    theme=None
-)
+with st.container(key="connected_chart_block"):
+    st.altair_chart(
+        coordinated_dashboard,
+        use_container_width=False,
+        theme=None
+    )
 
 
 # --------------------------------------------------
